@@ -1,0 +1,94 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '2.5.2'
+    id 'io.spring.dependency-management' version '1.1.0'
+    id 'org.asciidoctor.convert' version '1.5.8'
+
+    id 'com.epages.restdocs-api-spec' version '0.11.4'
+    id 'org.hidetake.swagger.generator' version '2.18.2'
+}
+
+group = 'com.gongdel'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+swaggerSources {
+    sample {
+        setInputFile(file("${project.buildDir}/api-spec/open-api-3.0.1.json"))
+    }
+}
+
+dependencies {
+    annotationProcessor(
+            'org.springframework.boot:spring-boot-configuration-processor',
+            'org.projectlombok:lombok'
+    )
+    implementation(
+            'org.springframework.boot:spring-boot-starter-web',
+            'org.springframework.boot:spring-boot-starter-webflux',
+            'org.springframework.boot:spring-boot-starter-data-jpa',
+            'org.springframework.boot:spring-boot-starter-validation',
+            'org.modelmapper:modelmapper:2.4.4'
+    )
+    testImplementation(
+            'org.springframework.restdocs:spring-restdocs-webtestclient',
+            'com.epages:restdocs-api-spec-webtestclient:0.11.3'
+    )
+    testImplementation("org.springframework.boot:spring-boot-starter-test") {
+        exclude group: "junit", module: "junit"
+    }
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'com.h2database:h2'
+
+    swaggerUI('org.webjars:swagger-ui:4.11.1')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+
+openapi3 { // epages openapi3.0 설정
+    server = 'http://localhost:8080'
+    title = 'Spring-Rest-Docs + Swagger-UI + Open-API-3.0.1'
+    description 'Spring-Rest-Docs의 장점과 Swagger의 장점을 모두 가져갈 수 있는 아키텍처를 구축한다'
+    version = '0.0.1'
+    outputFileNamePrefix = 'open-api-3.0.1'
+    format = 'json'
+}
+
+postman {
+    title = 'My API'
+    version = '0.1.0'
+    baseUrl = 'http://localhost:8080'
+}
+
+//GenerateSwaggerUI 태스크가, openapi3 task 를 의존하도록 설정
+tasks.withType(GenerateSwaggerUI) {
+    dependsOn 'openapi3'
+}
+
+// 생성된 SwaggerUI 를 jar 에 포함시키기 위해 build/resources 경로로 로 복사
+tasks.register('copySwaggerUI', Copy) {
+    dependsOn 'generateSwaggerUISample'
+
+    def generateSwaggerUISampleTask = tasks.named('generateSwaggerUISample', GenerateSwaggerUI).get()
+    from("${generateSwaggerUISampleTask.outputDir}")
+    into("${project.buildDir}/resources/main/static/docs")
+}
+
+bootJar {
+    dependsOn(':openapi3') // OpenAPI 작성 자동화를 위해 패키징 전에 openapi3 태스크 선실행을 유발
+    dependsOn 'copySwaggerUI'
+}
